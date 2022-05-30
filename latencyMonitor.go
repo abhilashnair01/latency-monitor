@@ -128,7 +128,8 @@ func printToAllLoggers(message string) {
 }
 
 func measureURL(index int, endpoint Endpoint) string {
-	var resultText string
+	var resultDisplayText string
+	var resultLoggerText string
 	var latencyEntry LatencyMeasure
 	latencyEntry.Name = endpoint.Name
 
@@ -160,21 +161,23 @@ func measureURL(index int, endpoint Endpoint) string {
 		fmt.Println(err.Error())
 		latencyEntry.StatusCode = 0
 
+		resultLoggerText = fmt.Sprintf("System: %s, ConnectionError, Time Taken : %d ms", latencyEntry.Name, latencyEntry.TimeTaken)
 		if latencyEntry.TimeTaken < 1000 {
-			resultText = fmt.Sprintf("System: %s \t ConnectionError \t %d ms", latencyEntry.Name, latencyEntry.TimeTaken)
+			resultDisplayText = fmt.Sprintf("System: %s \t ConnectionError \t %d ms", latencyEntry.Name, latencyEntry.TimeTaken)
 		} else {
-			resultText = fmt.Sprintf("System: %s \t ConnectionError \t %.2f seconds", latencyEntry.Name, float64(latencyEntry.TimeTaken)/1000)
+			resultDisplayText = fmt.Sprintf("System: %s \t ConnectionError \t %.2f seconds", latencyEntry.Name, float64(latencyEntry.TimeTaken)/1000)
 		}
 	} else {
 		latencyEntry.StatusCode = response.StatusCode
 
+		resultLoggerText = fmt.Sprintf("System: %s, HTTP Status %d, Time Taken : %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken)
 		if latencyEntry.TimeTaken < 1000 {
-			resultText = fmt.Sprintf("System: %s \t HTTP Status %d \t %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken)
+			resultDisplayText = fmt.Sprintf("System: %s \t HTTP Status %d \t %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken)
 		} else {
-			resultText = fmt.Sprintf("System: %s \t HTTP Status %d \t %.2f seconds", latencyEntry.Name, latencyEntry.StatusCode, float64(latencyEntry.TimeTaken)/1000)
+			resultDisplayText = fmt.Sprintf("System: %s \t HTTP Status %d \t %.2f seconds", latencyEntry.Name, latencyEntry.StatusCode, float64(latencyEntry.TimeTaken)/1000)
 		}
 	}
 
-	log.Println(resultText)
-	return resultText
+	log.Println(resultLoggerText)
+	return resultDisplayText
 }
