@@ -1,0 +1,13 @@
+2022/05/30 12:21:48 Endpoint 1 "Google APIs Service Directory"	 https://servicedirectory.googleapis.com/$discovery/rest?version=v1
+2022/05/30 12:21:48 Endpoint 2 "ReqRes Slow 2sec minimum API"	 https://reqres.in/api/users?delay=2
+2022/05/30 12:21:48 Endpoint 3 "Apigee Mock API - Echo"	 https://mocktarget.apigee.net/echo
+2022/05/30 12:21:48 Using config as 10 seconds interval and 1 hour run duration
+2022/05/30 12:21:48 Starting up ... 
+2022/05/30 12:21:48 Started up 3 pollers ...
+2022/05/30 12:22:00 System: Google APIs Service Directory, HTTP Status 200, Time Taken : 1789 ms
+2022/05/30 12:22:02 System: ReqRes Slow 2sec minimum API, HTTP Status 200, Time Taken : 2535 ms
+2022/05/30 12:22:02 System: Apigee Mock API - Echo, HTTP Status 200, Time Taken : 289 ms
+2022/05/30 12:22:08 System: Google APIs Service Directory, HTTP Status 200, Time Taken : 341 ms
+2022/05/30 12:22:10 System: ReqRes Slow 2sec minimum API, HTTP Status 200, Time Taken : 2183 ms
+2022/05/30 12:22:11 System: Apigee Mock API - Echo, HTTP Status 200, Time Taken : 242 ms
+2022/05/30 12:22:18 System: Google APIs Service Directory, HTTP Status 200, Time Taken : 341 ms
