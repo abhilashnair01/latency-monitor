@@ -6,8 +6,18 @@
   "endpoints": [
     {
       "method": "GET",
-      "name": "Google APIs Service Direcrory",
-      "url": "https://servicedirectory.googleapis.com/$discovery/rest?version=v1"
+      "name": "Google APIs Service Directory",
+      "url": "https://servicedirectory.googleapis.com/$discovery/rest?version=v1",
+      "headers": [
+        {
+          "name": "client_id",
+          "value": "5387hkjdhfkj34h5"
+        },
+        {
+          "name": "client_secret",
+          "value": "hj3hk465h4k6jh456"
+        }
+      ]
     },
     {
       "method": "GET",
@@ -21,17 +31,7 @@
       "basicAuth": {
         "userName": "test",
         "password": "cat"  
-      },
-      "headers": [
-        {
-          "name": "client_id",
-          "value": "5387hkjdhfkj34h5"
-        },
-        {
-          "name": "client_secret",
-          "value": "hj3hk465h4k6jh456"
-        }
-      ]    
+      }
     }
   ]
 }
