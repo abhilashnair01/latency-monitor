@@ -2,17 +2,39 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 )
 
 var configFile = "config/config.json"
 var logsDir = "logs"
+
+var customHTTPCodes = map[string]int{
+	"DNS-Config-Error":             10,
+	"DNS-Error":                    20,
+	"Network-Address-Error":        30,
+	"Network-InvalidAddress-Error": 40,
+	"HTTP-Operation-Error":         50,
+	"HTTP-Parse-Error":             60,
+	"Network-Unknown-Error":        70,
+	"Unhandled-Error":              80,
+}
+
+var dnsConfigError *net.DNSConfigError
+var dnsError *net.DNSError
+var addrError *net.AddrError
+var invalidAddrError *net.InvalidAddrError
+var opError *net.OpError
+var parseError *net.ParseError
+var unknownNetworkError *net.UnknownNetworkError
 
 // input config file
 type Config struct {
@@ -129,48 +151,53 @@ func printToAllLoggers(message string) {
 
 func measureURL(index int, endpoint Endpoint) string {
 	var resultDisplayText string
-	var resultLoggerText string
 	var latencyEntry LatencyMeasure
 	latencyEntry.Name = endpoint.Name
 
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Transport: &http.Transport{
+			Dial: (&net.Dialer{
+				Timeout:   30 * time.Second,
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
 	}
+	startTimestamp := time.Now()
+
 	req, err := http.NewRequest(endpoint.Method, endpoint.URL, nil)
 	if err != nil {
-		fmt.Println(err.Error())
+		latencyEntry.TimeTaken = time.Now().Sub(startTimestamp).Milliseconds()
+		return httpErrorHandler(err, latencyEntry)
 	}
 
+	// If Basic Authentication then apply it
 	if endpoint.BasicAuth.UserName != "" || endpoint.BasicAuth.Password != "" {
 		req.SetBasicAuth(endpoint.BasicAuth.UserName, endpoint.BasicAuth.Password)
 	}
 
+	// If Headers specified add them
 	for _, header := range endpoint.Headers {
 		req.Header.Add(header.Name, header.Value)
 	}
 
-	startTimestamp := time.Now()
 	response, err := client.Do(req)
 	if err != nil {
-		fmt.Println(err.Error())
+		latencyEntry.TimeTaken = time.Now().Sub(startTimestamp).Milliseconds()
+		return httpErrorHandler(err, latencyEntry)
 	}
 	defer response.Body.Close()
 	latencyEntry.TimeTaken = time.Now().Sub(startTimestamp).Milliseconds()
 
 	if err != nil {
-		fmt.Println(err.Error())
-		latencyEntry.StatusCode = 0
-
-		resultLoggerText = fmt.Sprintf("System: %s, ConnectionError, Time Taken : %d ms", latencyEntry.Name, latencyEntry.TimeTaken)
-		if latencyEntry.TimeTaken < 1000 {
-			resultDisplayText = fmt.Sprintf("System: %s \t ConnectionError \t %d ms", latencyEntry.Name, latencyEntry.TimeTaken)
-		} else {
-			resultDisplayText = fmt.Sprintf("System: %s \t ConnectionError \t %.2f seconds", latencyEntry.Name, float64(latencyEntry.TimeTaken)/1000)
-		}
+		return httpErrorHandler(err, latencyEntry)
 	} else {
 		latencyEntry.StatusCode = response.StatusCode
 
-		resultLoggerText = fmt.Sprintf("System: %s, HTTP Status %d, Time Taken : %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken)
+		log.Println(fmt.Sprintf("System: %s, HTTP Status %d, Time Taken : %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken))
+
 		if latencyEntry.TimeTaken < 1000 {
 			resultDisplayText = fmt.Sprintf("System: %s \t HTTP Status %d \t %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken)
 		} else {
@@ -178,6 +205,52 @@ func measureURL(index int, endpoint Endpoint) string {
 		}
 	}
 
-	log.Println(resultLoggerText)
+	return resultDisplayText
+}
+
+func httpErrorHandler(err error, latencyEntry LatencyMeasure) string {
+	var resultDisplayText string
+	var errorCode string
+
+	if errors.As(err, &dnsConfigError) {
+		errorCode = "DNS-Config-Error"
+	} else if errors.As(err, &dnsError) {
+		errorCode = "DNS-Error"
+	} else if errors.As(err, &addrError) {
+		errorCode = "Network-Address-Error"
+	} else if errors.As(err, &invalidAddrError) {
+		errorCode = "Network-InvalidAddress-Error"
+	} else if errors.As(err, &opError) {
+		errorCode = "HTTP-Operation-Error"
+	} else if errors.As(err, &parseError) {
+		errorCode = "HTTP-Parse-Error"
+	} else if errors.As(err, &unknownNetworkError) {
+		errorCode = "Network-UnknownNetwork-Error"
+	} else {
+		fmt.Println(err)
+		errorCode = "Unhandled-Error"
+	}
+
+	latencyEntry.StatusCode = customHTTPCodes[errorCode]
+
+	if err, ok := err.(net.Error); ok && err.Timeout() {
+		latencyEntry.StatusCode = latencyEntry.StatusCode + 5
+		errorCode = strings.Replace(errorCode, "Error", "Timeout", 1)
+
+		if strings.Contains(err.Error(), "timeout awaiting response headers") {
+			errorCode = strings.Replace(errorCode, "Unhandled", "Response", 1)
+		} else if strings.Contains(err.Error(), "TLS handshake timeout") {
+			errorCode = strings.Replace(errorCode, "Unhandled", "TLSHandshake", 1)
+		}
+	}
+
+	log.Println(fmt.Sprintf("System: %s, HTTP Status %d, Time Taken : %d ms", latencyEntry.Name, latencyEntry.StatusCode, latencyEntry.TimeTaken))
+
+	if latencyEntry.TimeTaken < 1000 {
+		resultDisplayText = fmt.Sprintf("System: %s \t %s Status %d \t %d ms", latencyEntry.Name, errorCode, latencyEntry.StatusCode, latencyEntry.TimeTaken)
+	} else {
+		resultDisplayText = fmt.Sprintf("System: %s \t %s Status %d \t %.2f seconds", latencyEntry.Name, errorCode, latencyEntry.StatusCode, float64(latencyEntry.TimeTaken)/1000)
+	}
+
 	return resultDisplayText
 }
